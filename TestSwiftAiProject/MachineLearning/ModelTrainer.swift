@@ -4,9 +4,12 @@ public final class LogicManager {
     
     private let dataGenerator = DataGenerator()
     private let data : MLDataTable
+    private let trainingSet : MLDataTable
+    private let testSet: MLDataTable
     
     init() throws {
         self.data = try LogicManager.buildDataTable(using: dataGenerator)
+        (self.trainingSet, self.testSet) = LogicManager.splitDataTable(self.data)
     }
     
     
@@ -30,6 +33,12 @@ public final class LogicManager {
         ])
         
         return table
+    }
+    
+    private static func splitDataTable(_ table: MLDataTable, testSize: Double = 0.2) -> (training: MLDataTable, test: MLDataTable) {
+        let trainFraction = 1.0 - testSize
+        let split = table.randomSplit(by: trainFraction, seed: 5)
+        return (training: split.0, test: split.1)
     }
     
 }
