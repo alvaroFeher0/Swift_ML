@@ -3,9 +3,15 @@ import CreateML
 public final class LogicManager {
     
     private let dataGenerator = DataGenerator()
+    private let data : MLDataTable
     
-    public func getDataTable() throws -> MLDataTable{
-        let data = dataGenerator.generateData()
+    init() throws {
+        self.data = try LogicManager.buildDataTable(using: dataGenerator)
+    }
+    
+    
+    private static func buildDataTable(using generator: DataGenerator) throws -> MLDataTable{
+        let data = generator.generateData()
         
         let priorities = data.map { $0.priority }
         let categories = data.map { $0.category }
