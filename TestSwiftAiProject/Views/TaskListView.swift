@@ -59,6 +59,14 @@ struct TaskListView: View {
                 refreshAgenda()
             }
             .onChange(of: tasks) { refreshAgenda() }
+            .onAppear {
+                do {
+                       let data = try LogicManager().getDataTable()
+                       print(data)
+                   } catch {
+                       print("Failed to build data table: \(error)")
+                   }
+            }
         }
     }
 
