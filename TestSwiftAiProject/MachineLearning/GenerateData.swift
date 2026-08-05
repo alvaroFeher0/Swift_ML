@@ -3,7 +3,7 @@ import Foundation
 
 public final class DataGenerator {
     private var baseline = 0.5
-    private var itemsAmount = 100 // amount of items to be generated
+    private var itemsAmount = 1000 // amount of items to be generated
   
     struct TrainingItem{
         let isCompleted: Bool
