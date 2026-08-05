@@ -41,4 +41,8 @@ public final class LogicManager {
         return (training: split.0, test: split.1)
     }
     
+    private func trainModel() throws -> MLClassifier{
+        fatalError("Not implemented")
+    }
+    
 }

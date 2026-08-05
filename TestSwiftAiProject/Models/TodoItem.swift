@@ -18,6 +18,7 @@ final class TodoItem {
     var isDone: Bool
     var linkedEventID: String?
     var createdAt: Date
+    var completedAt: Date?
     
     init(title: String, notes: String? = nil, dueDate: Date? = nil,
              priority: Priority = .medium, listName: String = "Inbox") {
@@ -29,5 +30,11 @@ final class TodoItem {
             self.listName = listName
             self.isDone = false
             self.createdAt = .now
+            self.completedAt = nil
         }
+    
+    func toggleCompletion() {
+        isDone.toggle()
+        completedAt = isDone ? .now : nil
+    }
 }

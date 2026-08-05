@@ -17,7 +17,7 @@ struct TaskListView: View {
                         switch item.kind {
                         case .task(let task):
                             Button {
-                                task.isDone.toggle()
+                                task.toggleCompletion()
                                 refreshAgenda()
                             } label: {
                                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
