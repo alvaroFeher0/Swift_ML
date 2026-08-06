@@ -8,7 +8,8 @@ public final class LogicManager {
     private let data: DataFrame
     private let trainingSet: DataFrame
     private let testSet: DataFrame
-
+     
+    
     init() throws {
         self.data = LogicManager.buildDataFrame(using: dataGenerator)
         let split = LogicManager.splitDataFrame(self.data)
@@ -61,11 +62,27 @@ public final class LogicManager {
     
     
     private static func convertTodoToTrainData(todoItem: TodoItem) throws -> (priority: Int, category: String, dayOfWeek: Int, daysUntilDue: Int, notesLength: Int){
-        let priority = todoItem.priority
+        let calendar = Calendar.current
+        let priority: Int
+        
+        switch todoItem.priority {
+          case .low: priority = 1
+          case .medium: priority = 2
+          case .high: priority = 3
+        }
+        
         let category = todoItem.listName
-        let dayOfWeek = Calendar.current.component(.weekday, from: todoItem.dueDate) - 1
-        let daysUntilDue = Calendar.current.dateComponents([.day], from: Date(), to: todoItem.dueDate).day!
-        let notesLength = todoItem.notes.count
+        let effectiveDueDate: Date
+        if let dueDate = todoItem.dueDate {
+            effectiveDueDate = dueDate
+        } else {
+            let startOfCreationDay = calendar.startOfDay(for: todoItem.createdAt)
+            effectiveDueDate = calendar.date(byAdding: .day, value: 1, to: startOfCreationDay)!
+        }
+
+        let dayOfWeek = calendar.component(.weekday, from: effectiveDueDate)
+        let daysUntilDue = calendar.dateComponents([.day], from: .now, to: effectiveDueDate).day ?? 0
+        let notesLength = todoItem.notes?.count ?? 0
         
         return (priority, category, dayOfWeek, daysUntilDue, notesLength)
     }
@@ -76,14 +93,14 @@ public final class LogicManager {
         let modelURL = documentsURL.appendingPathComponent("TaskPredictor.mlmodel")
         
         let model = try TaskPredictor(contentsOf: modelURL)
-        let f = LogicManager.features(todoItem: todoTask)
+        let f = try LogicManager.convertTodoToTrainData(todoItem: todoTask)
         
         let input = TaskPredictorInput(
+                priority: Int64(f.priority),
+                category: f.category,
                 dayOfWeek: Int64(f.dayOfWeek),
                 daysUntilDue: Int64(f.daysUntilDue),
-                category: f.category,
                 notesLength: Int64(f.notesLength),
-                priority: Int64(f.priority)
             )
 
         let output = try model.prediction(input: input)
