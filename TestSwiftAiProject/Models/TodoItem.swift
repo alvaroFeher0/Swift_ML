@@ -19,6 +19,7 @@ final class TodoItem {
     var linkedEventID: String?
     var createdAt: Date
     var completedAt: Date?
+    var completionProbability: Double { isDone ? 1.0 : 0.0 }
     
     init(title: String, notes: String? = nil, dueDate: Date? = nil,
              priority: Priority = .medium, listName: String = "Inbox") {

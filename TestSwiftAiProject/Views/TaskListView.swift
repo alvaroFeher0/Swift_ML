@@ -41,6 +41,11 @@ struct TaskListView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+
+                        if let percentage = item.completionPercentage {
+                            Spacer()
+                            CompletionRing(percentage: percentage)
+                        }
                     }
                 }
             }
@@ -89,13 +94,48 @@ struct TaskListView: View {
     }
 }
 
+struct CompletionRing: View {
+    let percentage: Double
+
+    private var clamped: Double { min(max(percentage, 0), 100) }
+
+    private var color: Color {
+        switch clamped {
+        case ..<50: return .red
+        case ..<70: return .orange
+        default: return .green
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(color.opacity(0.2), lineWidth: 4)
+
+            Circle()
+                .trim(from: 0, to: clamped / 100)
+                .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+
+            Text("\(Int(clamped.rounded()))")
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(color)
+        }
+        .frame(width: 40, height: 40)
+        .animation(.easeInOut, value: clamped)
+        .accessibilityElement()
+        .accessibilityLabel("Completion \(Int(clamped.rounded())) percent")
+    }
+}
+
 func buildAgenda(tasks: [TodoItem], events: [EKEvent]) -> [AgendaItem] {
     let taskItems = tasks
         .filter { !$0.isDone }
-        .map { AgendaItem(id: $0.id.uuidString, title: $0.title, time: $0.dueDate, kind: .task($0)) }
+        .map { AgendaItem(id: $0.id.uuidString, title: $0.title, time: $0.dueDate, completionPercentage: 10.0, kind: .task($0)) }
 
     let eventItems = events
-        .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, kind: .event($0)) }
+        .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, completionPercentage: nil, kind: .event($0)) }
 
     let combined = taskItems + eventItems
     return combined.sorted { a, b in

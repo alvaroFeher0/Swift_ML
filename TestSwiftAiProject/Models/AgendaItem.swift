@@ -9,6 +9,7 @@ enum AgendaKind {
 struct AgendaItem: Identifiable {
     let id: String
     let title: String
-    let time: Date?     
+    let time: Date?
+    let completionPercentage: Double?
     let kind: AgendaKind
 }

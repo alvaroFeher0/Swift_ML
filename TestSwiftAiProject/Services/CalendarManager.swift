@@ -26,10 +26,10 @@ final class CalendarManager {
     func buildAgenda(tasks: [TodoItem], events: [EKEvent]) -> [AgendaItem] {
         let taskItems = tasks
             .filter { !$0.isDone }
-            .map { AgendaItem(id: $0.id.uuidString, title: $0.title, time: $0.dueDate, kind: .task($0)) }
+            .map { AgendaItem(id: $0.id.uuidString, title: $0.title, time: $0.dueDate, completionPercentage: 10, kind: .task($0)) }
 
         let eventItems = events
-            .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, kind: .event($0)) }
+            .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, completionPercentage: 10, kind: .event($0)) }
 
         let combined = taskItems + eventItems
         return combined.sorted { a, b in
