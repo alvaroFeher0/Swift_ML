@@ -58,4 +58,35 @@ public final class LogicManager {
 
         return classifier
     }
+    
+    
+    private static func convertTodoToTrainData(todoItem: TodoItem) throws -> (priority: Int, category: String, dayOfWeek: Int, daysUntilDue: Int, notesLength: Int){
+        let priority = todoItem.priority
+        let category = todoItem.listName
+        let dayOfWeek = Calendar.current.component(.weekday, from: todoItem.dueDate) - 1
+        let daysUntilDue = Calendar.current.dateComponents([.day], from: Date(), to: todoItem.dueDate).day!
+        let notesLength = todoItem.notes.count
+        
+        return (priority, category, dayOfWeek, daysUntilDue, notesLength)
+    }
+    
+    // predict how likely is a task to be completed in time
+    func predictTask(todoTask: TodoItem)throws->Double{
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let modelURL = documentsURL.appendingPathComponent("TaskPredictor.mlmodel")
+        
+        let model = try TaskPredictor(contentsOf: modelURL)
+        let f = LogicManager.features(todoItem: todoTask)
+        
+        let input = TaskPredictorInput(
+                dayOfWeek: Int64(f.dayOfWeek),
+                daysUntilDue: Int64(f.daysUntilDue),
+                category: f.category,
+                notesLength: Int64(f.notesLength),
+                priority: Int64(f.priority)
+            )
+
+        let output = try model.prediction(input: input)
+        return output.isCompletedProbability[1] ?? 0.0
+    }
 }
