@@ -8,7 +8,7 @@ struct TaskListView: View {
     @State private var showingAdd = false
     @State private var calendarManager = CalendarManager()
     @State private var agenda: [AgendaItem] = []
-    @State private var isTraining = false
+    private var trainer = ModelTrainer.shared
 
     var body: some View {
         NavigationStack {
@@ -56,11 +56,10 @@ struct TaskListView: View {
                         Image(systemName: "plus")
                     }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: trainModel) {
-                        Image(systemName: "brain")
+                if trainer.isTraining {
+                    ToolbarItem(placement: .primaryAction) {
+                        ProgressView()
                     }
-                    .disabled(isTraining)
                 }
             }
             .sheet(isPresented: $showingAdd, onDismiss: refreshAgenda) {
@@ -71,20 +70,6 @@ struct TaskListView: View {
                 refreshAgenda()
             }
             .onChange(of: tasks) { refreshAgenda() }
-        }
-    }
-
-    private func trainModel() {
-        isTraining = true
-        Task.detached(priority: .userInitiated) {
-            do {
-                let manager = try LogicManager()
-                let classifier = try manager.trainClassifier()
-                print("Trained classifier: \(classifier)")
-            } catch {
-                print("Training failed: \(error)")
-            }
-            await MainActor.run { isTraining = false }
         }
     }
 
