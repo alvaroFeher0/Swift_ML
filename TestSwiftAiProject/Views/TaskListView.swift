@@ -8,7 +8,7 @@ struct TaskListView: View {
     @State private var showingAdd = false
     @State private var calendarManager = CalendarManager()
     @State private var agenda: [AgendaItem] = []
-    @State private var isTraining = false
+    private var trainer = ModelTrainer.shared
 
     var body: some View {
         NavigationStack {
@@ -32,19 +32,23 @@ struct TaskListView: View {
                         VStack(alignment: .leading) {
                             Text(item.title)
                             if let time = item.time {
-                                Text(time, style: .time)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Text(time, format: .dateTime.day().month().hour().minute())
+        
                             } else {
                                 Text("Anytime today")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
+                            
                         }
 
                         if let percentage = item.completionPercentage {
                             Spacer()
                             CompletionRing(percentage: percentage)
+                            
+                            // add more rings with the probability of completing the task the next few days 
+                            //Spacer()
+                            //CompletionRing(percentage: percentage)
                         }
                     }
                 }
@@ -56,11 +60,10 @@ struct TaskListView: View {
                         Image(systemName: "plus")
                     }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: trainModel) {
-                        Image(systemName: "brain")
+                if trainer.isTraining {
+                    ToolbarItem(placement: .primaryAction) {
+                        ProgressView()
                     }
-                    .disabled(isTraining)
                 }
             }
             .sheet(isPresented: $showingAdd, onDismiss: refreshAgenda) {
@@ -71,26 +74,13 @@ struct TaskListView: View {
                 refreshAgenda()
             }
             .onChange(of: tasks) { refreshAgenda() }
-        }
-    }
-
-    private func trainModel() {
-        isTraining = true
-        Task.detached(priority: .userInitiated) {
-            do {
-                let manager = try LogicManager()
-                let classifier = try manager.trainClassifier()
-                print("Trained classifier: \(classifier)")
-            } catch {
-                print("Training failed: \(error)")
-            }
-            await MainActor.run { isTraining = false }
+            .onChange(of: trainer.predictorGeneration) { refreshAgenda() }
         }
     }
 
     private func refreshAgenda() {
         let events = calendarManager.eventsToday()
-        agenda = buildAgenda(tasks: tasks, events: events)
+        agenda = buildAgenda(tasks: tasks, events: events, predictor: trainer.predictor)
     }
 }
 
@@ -129,10 +119,29 @@ struct CompletionRing: View {
     }
 }
 
-func buildAgenda(tasks: [TodoItem], events: [EKEvent]) -> [AgendaItem] {
+func buildAgenda(tasks: [TodoItem], events: [EKEvent], predictor: TaskPredictor?) -> [AgendaItem] {
+    
+    
     let taskItems = tasks
         .filter { !$0.isDone }
-        .map { AgendaItem(id: $0.id.uuidString, title: $0.title, time: $0.dueDate, completionPercentage: 10.0, kind: .task($0)) }
+        .map { task -> AgendaItem in
+            var percentage: Double?
+            if let predictor {
+                do {
+                    percentage = try LogicManager.predictTask(todoTask: task, using: predictor)
+                } catch {
+                    print("Prediction failed for \(task.title): \(error)")
+                }
+            }
+
+            return AgendaItem(
+                id: task.id.uuidString,
+                title: task.title,
+                time: task.dueDate,
+                completionPercentage: percentage,
+                kind: .task(task)
+            )
+        }
 
     let eventItems = events
         .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, completionPercentage: nil, kind: .event($0)) }
