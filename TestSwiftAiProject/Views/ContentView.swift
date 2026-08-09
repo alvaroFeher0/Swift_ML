@@ -1,10 +1,3 @@
-//
-//  ContentView.swift
-//  TestSwiftAiProject
-//
-//  Created by Hola Buenas tardes on 8/1/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {

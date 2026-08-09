@@ -1,8 +1,17 @@
+import CoreML
 import CreateML
 import Foundation
 import TabularData
 
 public final class LogicManager {
+
+    /// Where `trainClassifier()` writes the freshly trained model. The vocabulary
+    /// version is in the filename so a category-set change retrains automatically
+    /// instead of loading a model with a stale one-hot encoding.
+    static var trainedModelURL: URL {
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documentsURL.appendingPathComponent("TaskPredictor-v\(TaskCategory.vocabularyVersion).mlmodel")
+    }
 
     private let dataGenerator = DataGenerator()
     private let data: DataFrame
@@ -52,8 +61,10 @@ public final class LogicManager {
         print("Training accuracy: \(trainingAccuracy)")
         print("Test accuracy: \(testAccuracy)")
         
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let modelURL = documentsURL.appendingPathComponent("TaskPredictor.mlmodel")
+        let modelURL = LogicManager.trainedModelURL
+        if FileManager.default.fileExists(atPath: modelURL.path) {
+            try FileManager.default.removeItem(at: modelURL)
+        }
         try classifier.write(to: modelURL, metadata: nil)
         print("Model saved to: \(modelURL)")
 
@@ -71,7 +82,7 @@ public final class LogicManager {
           case .high: priority = 3
         }
         
-        let category = todoItem.listName
+        let category = TaskCategory.normalize(todoItem.listName)
         let effectiveDueDate: Date
         if let dueDate = todoItem.dueDate {
             effectiveDueDate = dueDate
@@ -87,14 +98,23 @@ public final class LogicManager {
         return (priority, category, dayOfWeek, daysUntilDue, notesLength)
     }
     
-    // predict how likely is a task to be completed in time
-    func predictTask(todoTask: TodoItem)throws->Double{
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let modelURL = documentsURL.appendingPathComponent("TaskPredictor.mlmodel")
-        
-        let model = try TaskPredictor(contentsOf: modelURL)
+    /// Compiles and loads the model trained at launch, falling back to the one
+    /// bundled with the app. `trainClassifier()` writes an uncompiled `.mlmodel`,
+    /// so Core ML has to compile it before it can be loaded.
+    ///
+    /// Call this off the main thread — `compileModel` warns and blocks otherwise.
+    nonisolated static func makePredictor() throws -> TaskPredictor {
+        if FileManager.default.fileExists(atPath: trainedModelURL.path) {
+            let compiledURL = try MLModel.compileModel(at: trainedModelURL)
+            return try TaskPredictor(contentsOf: compiledURL)
+        }
+        return try TaskPredictor(configuration: MLModelConfiguration())
+    }
+
+    // predict how likely is a task to be completed in time, as a 0-100 percentage
+    static func predictTask(todoTask: TodoItem, using model: TaskPredictor) throws -> Double {
         let f = try LogicManager.convertTodoToTrainData(todoItem: todoTask)
-        
+
         let input = TaskPredictorInput(
                 priority: Int64(f.priority),
                 category: f.category,
@@ -104,6 +124,6 @@ public final class LogicManager {
             )
 
         let output = try model.prediction(input: input)
-        return output.isCompletedProbability[1] ?? 0.0
+        return (output.isCompletedProbability[1] ?? 0.0) * 100
     }
 }

@@ -15,7 +15,7 @@ public final class DataGenerator {
     }
     
     private let processCategories: Set<String> = ["Admin", "Chores", "Routine"]
-    private let allCategories = ["Admin", "Chores", "Routine", "Work", "Personal", "Study", "Exercise"]
+    private let allCategories = TaskCategory.all
     
     private func isProcessCategory(_ category: String) -> Bool {
         processCategories.contains(category)
