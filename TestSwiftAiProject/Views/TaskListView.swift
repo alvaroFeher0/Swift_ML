@@ -71,6 +71,7 @@ struct TaskListView: View {
             }
             .task {
                 _ = await calendarManager.requestAccess()
+                _= await calendarManager.requestRemindersAccess()
                 refreshAgenda()
             }
             .onChange(of: tasks) { refreshAgenda() }

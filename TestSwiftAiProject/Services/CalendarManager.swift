@@ -12,6 +12,15 @@ final class CalendarManager {
             return false
         }
     }
+    
+    func requestRemindersAccess() async -> Bool {
+            do {
+                return try await store.requestFullAccessToReminders()
+            } catch {
+                print("🔴 reminders access error: \(error)")
+                return false
+            }
+        }
 
     func eventsToday() -> [EKEvent] {
         let calendar = Calendar.current
@@ -30,7 +39,9 @@ final class CalendarManager {
 
         let eventItems = events
             .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, completionPercentage: 10, kind: .event($0)) }
-
+        
+        getOverdueReminders()
+        
         let combined = taskItems + eventItems
         return combined.sorted { a, b in
             switch (a.time, b.time) {
@@ -41,4 +52,24 @@ final class CalendarManager {
             }
         }
     }
+    
+    func getOverdueReminders() async -> [EKReminder] {
+            await withCheckedContinuation { continuation in
+                let predicate = store.predicateForIncompleteReminders(
+                    withDueDateStarting: nil,
+                    ending: .now,
+                    calendars: nil
+                )
+                store.fetchReminders(matching: predicate) { reminders in
+                    let overdue = (reminders ?? [])
+                        .filter { $0.dueDateComponents != nil }
+                        .sorted {
+                            let d0 = Calendar.current.date(from: $0.dueDateComponents!) ?? .distantFuture
+                            let d1 = Calendar.current.date(from: $1.dueDateComponents!) ?? .distantFuture
+                            return d0 < d1
+                        }
+                    continuation.resume(returning: overdue)
+                }
+            }
+        }
 }
