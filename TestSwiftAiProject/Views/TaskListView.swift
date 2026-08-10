@@ -8,20 +8,36 @@ struct TaskListView: View {
     @State private var showingAdd = false
     @State private var calendarManager = CalendarManager()
     @State private var agenda: [AgendaItem] = []
+    @State private var remindersAccessGranted = true
     private var trainer = ModelTrainer.shared
 
     var body: some View {
         NavigationStack {
             List {
+                if !remindersAccessGranted {
+                    Text("Reminders access is off, so your reminders aren't shown. Turn it on in Settings › Privacy & Security › Reminders.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 ForEach(agenda) { item in
                     HStack {
                         switch item.kind {
                         case .task(let task):
                             Button {
                                 task.toggleCompletion()
-                                refreshAgenda()
+                                refresh()
                             } label: {
                                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
+                            }
+                            .buttonStyle(.plain)
+                        case .reminder(let reminder):
+                            Button {
+                                calendarManager.setCompleted(reminder, completed: true)
+                                refresh()
+                            } label: {
+                                Image(systemName: "circle")
+                                    .foregroundStyle(.orange)
                             }
                             .buttonStyle(.plain)
                         case .event:
@@ -33,13 +49,18 @@ struct TaskListView: View {
                             Text(item.title)
                             if let time = item.time {
                                 Text(time, format: .dateTime.day().month().hour().minute())
-        
+
                             } else {
                                 Text("Anytime today")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            
+
+                            if case .reminder(let reminder) = item.kind {
+                                Text(reminder.calendar.title)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
 
                         if let percentage = item.completionPercentage {
@@ -66,22 +87,28 @@ struct TaskListView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingAdd, onDismiss: refreshAgenda) {
+            .sheet(isPresented: $showingAdd, onDismiss: refresh) {
                 AddTaskView()
             }
             .task {
                 _ = await calendarManager.requestAccess()
-                _= await calendarManager.requestRemindersAccess()
-                refreshAgenda()
+                remindersAccessGranted = await calendarManager.requestRemindersAccess()
+                await refreshAgenda()
             }
-            .onChange(of: tasks) { refreshAgenda() }
-            .onChange(of: trainer.predictorGeneration) { refreshAgenda() }
+            .onChange(of: tasks) { refresh() }
+            .onChange(of: trainer.predictorGeneration) { refresh() }
         }
     }
 
-    private func refreshAgenda() {
+    /// Fire-and-forget wrapper, for the synchronous callbacks.
+    private func refresh() {
+        Task { await refreshAgenda() }
+    }
+
+    private func refreshAgenda() async {
         let events = calendarManager.eventsToday()
-        agenda = buildAgenda(tasks: tasks, events: events, predictor: trainer.predictor)
+        let reminders = remindersAccessGranted ? await calendarManager.incompleteReminders() : []
+        agenda = buildAgenda(tasks: tasks, events: events, reminders: reminders, predictor: trainer.predictor)
     }
 }
 
@@ -120,9 +147,9 @@ struct CompletionRing: View {
     }
 }
 
-func buildAgenda(tasks: [TodoItem], events: [EKEvent], predictor: TaskPredictor?) -> [AgendaItem] {
-    
-    
+func buildAgenda(tasks: [TodoItem], events: [EKEvent], reminders: [EKReminder], predictor: TaskPredictor?) -> [AgendaItem] {
+
+
     let taskItems = tasks
         .filter { !$0.isDone }
         .map { task -> AgendaItem in
@@ -147,7 +174,12 @@ func buildAgenda(tasks: [TodoItem], events: [EKEvent], predictor: TaskPredictor?
     let eventItems = events
         .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, completionPercentage: nil, kind: .event($0)) }
 
-    let combined = taskItems + eventItems
+    // The caller only ever hands us incomplete reminders, so there is nothing to
+    // filter here — the Reminders app is the source of truth for "done".
+    let reminderItems = reminders
+        .map { AgendaItem(id: $0.calendarItemIdentifier, title: $0.title ?? "Untitled", time: $0.resolvedDueDate, completionPercentage: nil, kind: .reminder($0)) }
+
+    let combined = taskItems + eventItems + reminderItems
     return combined.sorted { a, b in
         switch (a.time, b.time) {
         case (nil, nil): return false

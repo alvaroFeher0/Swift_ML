@@ -1,5 +1,14 @@
 import EventKit
 
+extension EKReminder {
+    /// `dueDateComponents` resolved against the current calendar. `nil` for
+    /// reminders with no due date at all.
+    var resolvedDueDate: Date? {
+        guard let dueDateComponents else { return nil }
+        return Calendar.current.date(from: dueDateComponents)
+    }
+}
+
 @Observable
 final class CalendarManager {
     private let store = EKEventStore()
@@ -12,7 +21,7 @@ final class CalendarManager {
             return false
         }
     }
-    
+
     func requestRemindersAccess() async -> Bool {
             do {
                 return try await store.requestFullAccessToReminders()
@@ -31,45 +40,34 @@ final class CalendarManager {
         let predicate = store.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: nil)
         return store.events(matching: predicate).sorted { $0.startDate < $1.startDate }
     }
-    
-    func buildAgenda(tasks: [TodoItem], events: [EKEvent]) -> [AgendaItem] {
-        let taskItems = tasks
-            .filter { !$0.isDone }
-            .map { AgendaItem(id: $0.id.uuidString, title: $0.title, time: $0.dueDate, completionPercentage: 10, kind: .task($0)) }
 
-        let eventItems = events
-            .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, completionPercentage: 10, kind: .event($0)) }
-        
-        getOverdueReminders()
-        
-        let combined = taskItems + eventItems
-        return combined.sorted { a, b in
-            switch (a.time, b.time) {
-            case (nil, nil): return false
-            case (nil, _): return true      
-            case (_, nil): return false
-            case let (t1?, t2?): return t1 < t2
+    /// Every reminder the user has not ticked off yet, across all reminder lists.
+    ///
+    /// Passing `nil` for both bounds keeps reminders with no due date, which the
+    /// agenda shows as "Anytime". Reminders that are due sort first, oldest first.
+    func incompleteReminders() async -> [EKReminder] {
+        await withCheckedContinuation { continuation in
+            let predicate = store.predicateForIncompleteReminders(
+                withDueDateStarting: nil,
+                ending: nil,
+                calendars: nil
+            )
+            store.fetchReminders(matching: predicate) { reminders in
+                let sorted = (reminders ?? []).sorted {
+                    ($0.resolvedDueDate ?? .distantFuture) < ($1.resolvedDueDate ?? .distantFuture)
+                }
+                continuation.resume(returning: sorted)
             }
         }
     }
-    
-    func getOverdueReminders() async -> [EKReminder] {
-            await withCheckedContinuation { continuation in
-                let predicate = store.predicateForIncompleteReminders(
-                    withDueDateStarting: nil,
-                    ending: .now,
-                    calendars: nil
-                )
-                store.fetchReminders(matching: predicate) { reminders in
-                    let overdue = (reminders ?? [])
-                        .filter { $0.dueDateComponents != nil }
-                        .sorted {
-                            let d0 = Calendar.current.date(from: $0.dueDateComponents!) ?? .distantFuture
-                            let d1 = Calendar.current.date(from: $1.dueDateComponents!) ?? .distantFuture
-                            return d0 < d1
-                        }
-                    continuation.resume(returning: overdue)
-                }
-            }
+
+    /// Writes the completion flag back to the Reminders app.
+    func setCompleted(_ reminder: EKReminder, completed: Bool) {
+        reminder.isCompleted = completed
+        do {
+            try store.save(reminder, commit: true)
+        } catch {
+            print("🔴 could not save reminder '\(reminder.title ?? "")': \(error)")
         }
+    }
 }

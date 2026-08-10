@@ -4,6 +4,7 @@ import EventKit
 enum AgendaKind {
     case event(EKEvent)
     case task(TodoItem)
+    case reminder(EKReminder)
 }
 
 struct AgendaItem: Identifiable {
