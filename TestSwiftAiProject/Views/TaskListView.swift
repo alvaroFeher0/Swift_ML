@@ -6,10 +6,24 @@ struct TaskListView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \TodoItem.createdAt, order: .reverse) private var tasks: [TodoItem]
     @State private var showingAdd = false
+    @State private var showingOldTasks = false
     @State private var calendarManager = CalendarManager()
+    @State private var taskManager = TaskManager()
     @State private var agenda: [AgendaItem] = []
     @State private var remindersAccessGranted = true
     private var trainer = ModelTrainer.shared
+
+    /// Anything already due before today. Items with no time at all count as
+    /// "today", so they stay in the main list rather than hiding away.
+    private var oldItems: [AgendaItem] {
+        let startOfToday = Calendar.current.startOfDay(for: .now)
+        return agenda.filter { ($0.time ?? .distantFuture) < startOfToday }
+    }
+
+    private var todayItems: [AgendaItem] {
+        let startOfToday = Calendar.current.startOfDay(for: .now)
+        return agenda.filter { ($0.time ?? .distantFuture) >= startOfToday }
+    }
 
     var body: some View {
         NavigationStack {
@@ -20,57 +34,35 @@ struct TaskListView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                ForEach(agenda) { item in
-                    HStack {
-                        switch item.kind {
-                        case .task(let task):
-                            Button {
-                                task.toggleCompletion()
-                                refresh()
-                            } label: {
-                                Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
-                            }
-                            .buttonStyle(.plain)
-                        case .reminder(let reminder):
-                            Button {
-                                calendarManager.setCompleted(reminder, completed: true)
-                                refresh()
-                            } label: {
-                                Image(systemName: "circle")
-                                    .foregroundStyle(.orange)
-                            }
-                            .buttonStyle(.plain)
-                        case .event:
-                            Image(systemName: "calendar")
-                                .foregroundStyle(.blue)
-                        }
-
-                        VStack(alignment: .leading) {
-                            Text(item.title)
-                            if let time = item.time {
-                                Text(time, format: .dateTime.day().month().hour().minute())
-
-                            } else {
-                                Text("Anytime today")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if case .reminder(let reminder) = item.kind {
-                                Text(reminder.calendar.title)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                if !oldItems.isEmpty {
+                    Section {
+                        if showingOldTasks {
+                            ForEach(oldItems) { item in
+                                AgendaRow(item: item) { complete(item) }
                             }
                         }
-
-                        if let percentage = item.completionPercentage {
-                            Spacer()
-                            CompletionRing(percentage: percentage)
-                            
-                            // add more rings with the probability of completing the task the next few days 
-                            //Spacer()
-                            //CompletionRing(percentage: percentage)
+                    } header: {
+                        Button {
+                            withAnimation { showingOldTasks.toggle() }
+                        } label: {
+                            HStack {
+                                Image(systemName: "chevron.right")
+                                    .rotationEffect(.degrees(showingOldTasks ? 90 : 0))
+                                Text("Earlier")
+                                Spacer()
+                                Text("\(oldItems.count)")
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Earlier, \(oldItems.count) items")
+                        .accessibilityHint(showingOldTasks ? "Hides earlier items" : "Shows earlier items")
+                    }
+                }
+
+                Section("Today") {
+                    ForEach(todayItems) { item in
+                        AgendaRow(item: item) { complete(item) }
                     }
                 }
             }
@@ -100,6 +92,19 @@ struct TaskListView: View {
         }
     }
 
+    /// Ticks an agenda item off, wherever it lives. Events are read-only here.
+    private func complete(_ item: AgendaItem) {
+        switch item.kind {
+        case .task(let task):
+            task.toggleCompletion()
+        case .reminder(let reminder):
+            calendarManager.setCompleted(reminder, completed: true)
+        case .event:
+            return
+        }
+        refresh()
+    }
+
     /// Fire-and-forget wrapper, for the synchronous callbacks.
     private func refresh() {
         Task { await refreshAgenda() }
@@ -108,7 +113,60 @@ struct TaskListView: View {
     private func refreshAgenda() async {
         let events = calendarManager.eventsToday()
         let reminders = remindersAccessGranted ? await calendarManager.incompleteReminders() : []
-        agenda = buildAgenda(tasks: tasks, events: events, reminders: reminders, predictor: trainer.predictor)
+        agenda = taskManager.buildAgenda(tasks: tasks, events: events, reminders: reminders, predictor: trainer.predictor)
+    }
+}
+
+struct AgendaRow: View {
+    let item: AgendaItem
+    let onComplete: () -> Void
+
+    var body: some View {
+        HStack {
+            switch item.kind {
+            case .task(let task):
+                Button(action: onComplete) {
+                    Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
+                }
+                .buttonStyle(.plain)
+            case .reminder:
+                Button(action: onComplete) {
+                    Image(systemName: "circle")
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+            case .event:
+                Image(systemName: "calendar")
+                    .foregroundStyle(.blue)
+            }
+
+            VStack(alignment: .leading) {
+                Text(item.title)
+                if let time = item.time {
+                    Text(time, format: .dateTime.day().month().hour().minute())
+
+                } else {
+                    Text("Anytime today")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if case .reminder(let reminder) = item.kind {
+                    Text(reminder.calendar.title)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let percentage = item.completionPercentage {
+                Spacer()
+                CompletionRing(percentage: percentage)
+
+                // add more rings with the probability of completing the task the next few days
+                //Spacer()
+                //CompletionRing(percentage: percentage)
+            }
+        }
     }
 }
 
@@ -144,48 +202,5 @@ struct CompletionRing: View {
         .animation(.easeInOut, value: clamped)
         .accessibilityElement()
         .accessibilityLabel("Completion \(Int(clamped.rounded())) percent")
-    }
-}
-
-func buildAgenda(tasks: [TodoItem], events: [EKEvent], reminders: [EKReminder], predictor: TaskPredictor?) -> [AgendaItem] {
-
-
-    let taskItems = tasks
-        .filter { !$0.isDone }
-        .map { task -> AgendaItem in
-            var percentage: Double?
-            if let predictor {
-                do {
-                    percentage = try LogicManager.predictTask(todoTask: task, using: predictor)
-                } catch {
-                    print("Prediction failed for \(task.title): \(error)")
-                }
-            }
-
-            return AgendaItem(
-                id: task.id.uuidString,
-                title: task.title,
-                time: task.dueDate,
-                completionPercentage: percentage,
-                kind: .task(task)
-            )
-        }
-
-    let eventItems = events
-        .map { AgendaItem(id: $0.eventIdentifier, title: $0.title ?? "Untitled", time: $0.startDate, completionPercentage: nil, kind: .event($0)) }
-
-    // The caller only ever hands us incomplete reminders, so there is nothing to
-    // filter here — the Reminders app is the source of truth for "done".
-    let reminderItems = reminders
-        .map { AgendaItem(id: $0.calendarItemIdentifier, title: $0.title ?? "Untitled", time: $0.resolvedDueDate, completionPercentage: nil, kind: .reminder($0)) }
-
-    let combined = taskItems + eventItems + reminderItems
-    return combined.sorted { a, b in
-        switch (a.time, b.time) {
-        case (nil, nil): return false
-        case (nil, _): return true
-        case (_, nil): return false
-        case let (t1?, t2?): return t1 < t2
-        }
     }
 }

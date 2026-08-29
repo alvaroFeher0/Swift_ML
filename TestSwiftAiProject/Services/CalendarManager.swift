@@ -61,6 +61,25 @@ final class CalendarManager {
         }
     }
 
+    /// Every reminder ticked off since midnight, across all reminder lists.
+    func remindersCompletedToday() async -> [EKReminder] {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: .now)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            return []
+        }
+        return await withCheckedContinuation { continuation in
+            let predicate = store.predicateForCompletedReminders(
+                withCompletionDateStarting: startOfDay,
+                ending: endOfDay,
+                calendars: nil
+            )
+            store.fetchReminders(matching: predicate) { reminders in
+                continuation.resume(returning: reminders ?? [])
+            }
+        }
+    }
+
     /// Writes the completion flag back to the Reminders app.
     func setCompleted(_ reminder: EKReminder, completed: Bool) {
         reminder.isCompleted = completed

@@ -5,7 +5,7 @@ import SwiftData
 struct TodoCalendarApp: App {
     var body: some Scene {
         WindowGroup {
-            TaskListView()
+            RootView()
                 .task {
                     ModelTrainer.shared.train()
                 }
