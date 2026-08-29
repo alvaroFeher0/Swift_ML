@@ -29,11 +29,11 @@ public final class LogicManager {
     private static func buildDataFrame(using generator: DataGenerator) -> DataFrame {
         let rows = generator.generateData()
 
-        let priorities = Column(name: "priority", contents: rows.map { $0.priority })
-        let categories = Column(name: "category", contents: rows.map { $0.category })
-        let daysOfWeek = Column(name: "dayOfWeek", contents: rows.map { $0.dayOfWeek })
-        let daysUntilDue = Column(name: "daysUntilDue", contents: rows.map { $0.daysUntilDue })
-        let notesLengths = Column(name: "notesLength", contents: rows.map { $0.notesLength })
+        let priorities = Column(name: "priority", contents: rows.map { $0.features.priority })
+        let categories = Column(name: "category", contents: rows.map { $0.features.category })
+        let daysOfWeek = Column(name: "dayOfWeek", contents: rows.map { $0.features.dayOfWeek })
+        let daysUntilDue = Column(name: "daysUntilDue", contents: rows.map { $0.features.daysUntilDue })
+        let notesLengths = Column(name: "notesLength", contents: rows.map { $0.features.notesLength })
         let isCompletedValues = Column(name: "isCompleted", contents: rows.map { $0.isCompleted ? 1 : 0 })
 
         return DataFrame(columns: [
@@ -71,33 +71,6 @@ public final class LogicManager {
         return classifier
     }
     
-    
-    private static func convertTodoToTrainData(todoItem: TodoItem) throws -> (priority: Int, category: String, dayOfWeek: Int, daysUntilDue: Int, notesLength: Int){
-        let calendar = Calendar.current
-        let priority: Int
-        
-        switch todoItem.priority {
-          case .low: priority = 1
-          case .medium: priority = 2
-          case .high: priority = 3
-        }
-        
-        let category = TaskCategory.normalize(todoItem.listName)
-        let effectiveDueDate: Date
-        if let dueDate = todoItem.dueDate {
-            effectiveDueDate = dueDate
-        } else {
-            let startOfCreationDay = calendar.startOfDay(for: todoItem.createdAt)
-            effectiveDueDate = calendar.date(byAdding: .day, value: 1, to: startOfCreationDay)!
-        }
-
-        let dayOfWeek = calendar.component(.weekday, from: effectiveDueDate)
-        let daysUntilDue = calendar.dateComponents([.day], from: .now, to: effectiveDueDate).day ?? 0
-        let notesLength = todoItem.notes?.count ?? 0
-        
-        return (priority, category, dayOfWeek, daysUntilDue, notesLength)
-    }
-    
     /// Compiles and loads the model trained at launch, falling back to the one
     /// bundled with the app. `trainClassifier()` writes an uncompiled `.mlmodel`,
     /// so Core ML has to compile it before it can be loaded.
@@ -113,7 +86,7 @@ public final class LogicManager {
 
     // predict how likely is a task to be completed in time, as a 0-100 percentage
     static func predictTask(todoTask: TodoItem, using model: TaskPredictor) throws -> Double {
-        let f = try LogicManager.convertTodoToTrainData(todoItem: todoTask)
+        let f = TaskFeatures(task: todoTask)
 
         let input = TaskPredictorInput(
                 priority: Int64(f.priority),

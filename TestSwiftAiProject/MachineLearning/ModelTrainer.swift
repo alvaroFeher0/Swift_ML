@@ -1,5 +1,6 @@
 import CoreML
 import Foundation
+import SwiftData
 
 /// Owns model training and the loaded predictor, so both stay off the main thread
 /// and training can be kicked off at app launch instead of from a button.
@@ -16,13 +17,17 @@ final class ModelTrainer {
     /// Bumped whenever `predictor` changes, so views can refresh on it.
     private(set) var predictorGeneration = 0
 
+    /// How many of the user's real tasks have a settled outcome, and so are
+    /// usable as training rows.
+    private(set) var labeledRowCount = 0
+
     private var running: Task<Void, Never>?
 
     private init() {}
 
     /// Trains, then loads the result. Skips training when a model is already on
     /// disk unless `force` is set, but still loads the predictor either way.
-    func train(force: Bool = false) {
+    func train(container: ModelContainer, force: Bool = false) {
         guard running == nil else { return }
 
         let alreadyTrained = FileManager.default.fileExists(atPath: LogicManager.trainedModelURL.path)
@@ -37,8 +42,22 @@ final class ModelTrainer {
         running = Task.detached(priority: .utility) {
             var failure: Error?
             var loaded: TaskPredictor?
+            var labeledCount = 0
 
             do {
+
+                let context = ModelContext(container)
+                let tasks = try context.fetch(FetchDescriptor<TodoItem>())
+                let labeled = TrainingItem.labeledRows(from: tasks)
+                labeledCount = labeled.count
+
+                let onTime = labeled.filter(\.isCompleted).count
+                print("""
+                      Real tasks: \(tasks.count) total, \(labeled.count) labeled \
+                      (\(onTime) on time, \(labeled.count - onTime) missed), \
+                      \(tasks.count - labeled.count) undecided
+                      """)
+
                 if shouldTrain {
                     print("Training started")
                     let manager = try LogicManager()
@@ -57,6 +76,7 @@ final class ModelTrainer {
                     self.predictor = loaded
                     self.predictorGeneration += 1
                 }
+                self.labeledRowCount = labeledCount
                 self.lastError = failure
                 self.isTraining = false
                 self.running = nil

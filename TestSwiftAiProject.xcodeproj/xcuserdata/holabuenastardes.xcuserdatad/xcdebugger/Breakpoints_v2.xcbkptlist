@@ -18,5 +18,67 @@
             endingLineNumber = "136">
          </BreakpointContent>
       </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "3CA689A5-DB80-41FD-8DAA-E6DCF35BE5B0"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TestSwiftAiProject/MachineLearning/LogicManager.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "99"
+            endingLineNumber = "99"
+            landmarkName = "predictTask(todoTask:using:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "3CA689A5-DB80-41FD-8DAA-E6DCF35BE5B0 - a6bfcf14b78291c4"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "static TestSwiftAiProject.LogicManager.predictTask(todoTask: TestSwiftAiProject.TodoItem, using: TestSwiftAiProject.TaskPredictor) throws -&gt; Swift.Double"
+                  moduleName = "TestSwiftAiProject.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/holabuenastardes/Repos/testSwiftAi/TestSwiftAiProject/TestSwiftAiProject/MachineLearning/LogicManager.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "99"
+                  endingLineNumber = "99">
+               </Location>
+               <Location
+                  uuid = "3CA689A5-DB80-41FD-8DAA-E6DCF35BE5B0 - a6bfcf14b78291c4"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "static TestSwiftAiProject.LogicManager.predictTask(todoTask: TestSwiftAiProject.TodoItem, using: TestSwiftAiProject.TaskPredictor) throws -&gt; Swift.Double"
+                  moduleName = "TestSwiftAiProject.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/holabuenastardes/Repos/testSwiftAi/TestSwiftAiProject/TestSwiftAiProject/MachineLearning/LogicManager.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "99"
+                  endingLineNumber = "99">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "452D6863-ECAB-4FB4-9BAB-7D561E4F5868"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TestSwiftAiProject/MachineLearning/LogicManager.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "100"
+            endingLineNumber = "100"
+            landmarkName = "predictTask(todoTask:using:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
    </Breakpoints>
 </Bucket>
