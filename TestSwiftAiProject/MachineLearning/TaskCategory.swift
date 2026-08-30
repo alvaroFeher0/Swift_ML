@@ -9,7 +9,7 @@ import Foundation
 enum TaskCategory {
     /// Bump when `all` changes, so an existing on-disk model gets retrained
     /// instead of being loaded with a stale vocabulary.
-    static let vocabularyVersion = 2
+    static let vocabularyVersion = 3
 
     static let fallback = "Other"
 

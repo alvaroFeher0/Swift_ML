@@ -33,6 +33,7 @@ public final class LogicManager {
         let categories = Column(name: "category", contents: rows.map { $0.features.category })
         let daysOfWeek = Column(name: "dayOfWeek", contents: rows.map { $0.features.dayOfWeek })
         let daysUntilDue = Column(name: "daysUntilDue", contents: rows.map { $0.features.daysUntilDue })
+        let daysRemaining = Column(name: "daysRemaining", contents: rows.map { $0.features.daysRemaining })
         let notesLengths = Column(name: "notesLength", contents: rows.map { $0.features.notesLength })
         let isCompletedValues = Column(name: "isCompleted", contents: rows.map { $0.isCompleted ? 1 : 0 })
 
@@ -41,6 +42,7 @@ public final class LogicManager {
             categories.eraseToAnyColumn(),
             daysOfWeek.eraseToAnyColumn(),
             daysUntilDue.eraseToAnyColumn(),
+            daysRemaining.eraseToAnyColumn(),
             notesLengths.eraseToAnyColumn(),
             isCompletedValues.eraseToAnyColumn()
         ])
@@ -86,13 +88,14 @@ public final class LogicManager {
 
     // predict how likely is a task to be completed in time, as a 0-100 percentage
     static func predictTask(todoTask: TodoItem, using model: TaskPredictor) throws -> Double {
-        let f = TaskFeatures(task: todoTask)
+        let f = TaskFeatures(task: todoTask, today:Date())
 
         let input = TaskPredictorInput(
                 priority: Int64(f.priority),
                 category: f.category,
                 dayOfWeek: Int64(f.dayOfWeek),
                 daysUntilDue: Int64(f.daysUntilDue),
+                daysRemaining: Int64(f.daysRemaining),
                 notesLength: Int64(f.notesLength),
             )
 

@@ -38,7 +38,7 @@ final class ModelTrainer {
 
         isTraining = shouldTrain
         lastError = nil
-
+        
         running = Task.detached(priority: .utility) {
             var failure: Error?
             var loaded: TaskPredictor?

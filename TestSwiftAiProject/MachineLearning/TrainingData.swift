@@ -6,18 +6,19 @@ import Foundation
 /// the two can't drift apart — which is exactly what happened when the generator
 /// and the prediction path each decided for themselves what `daysUntilDue` meant.
 struct TaskFeatures{
-
+    
     /// The ranges the synthetic generator draws from. Real values are clamped into
     /// them: a `daysUntilDue` of 400 means nothing to a model whose every training
     /// row was 0...30.
     static let daysUntilDueRange = 0...30
     static let notesLengthRange = 0...200
-
+    
     let priority: Int
     let category: String
     let dayOfWeek: Int
     let notesLength: Int
-    let daysUntilDue: Int
+    let daysUntilDue: Int // how many days do i have to complete the task (it does not change over time)
+    let daysRemaining: Int // deadline - T
 }
 
 // Written as an extension so the memberwise init survives — `DataGenerator`
@@ -32,21 +33,13 @@ extension TaskFeatures {
         return calendar.date(byAdding: .day, value: 1, to: startOfCreationDay)!
     }
 
-    /// Features as of the moment the task was created.
-    ///
-    /// `daysUntilDue` is measured from `createdAt`, not from `.now`. It means "how
-    /// much runway did this task have" — an intrinsic property, which is what the
-    /// generator draws and what stays true once the outcome is known. Measured
-    /// against the clock instead it shrank between a row being written and a
-    /// prediction being made, and went negative for overdue tasks: a value the
-    /// model had never seen in training.
-    init(task: TodoItem, calendar: Calendar = .current) {
+    init(task: TodoItem,today: Date, calendar: Calendar = .current) {
         let deadline = Self.effectiveDueDate(for: task, calendar: calendar)
 
         switch task.priority {
-        case .low: priority = 1
-        case .medium: priority = 2
-        case .high: priority = 3
+            case .low: priority = 1
+            case .medium: priority = 2
+            case .high: priority = 3
         }
 
         category = TaskCategory.normalize(task.listName)
@@ -57,22 +50,22 @@ extension TaskFeatures {
             from: calendar.startOfDay(for: task.createdAt),
             to: deadline
         ).day ?? 0
+        
+        let left = calendar.dateComponents(
+               [.day],
+               from: calendar.startOfDay(for: today),
+               to: deadline
+           ).day ?? 0
 
         daysUntilDue = runway.clamped(to: Self.daysUntilDueRange)
         notesLength = (task.notes?.count ?? 0).clamped(to: Self.notesLengthRange)
+        daysRemaining =  left.clamped(to: Self.daysUntilDueRange)
     }
 }
 
-/// Whether a task's fate is settled yet, and which way it went.
-///
-/// "Completed" on its own is not a label. Harvesting only the tasks the user
-/// ticked off would make every row a positive and teach the model that
-/// everything gets done. The negatives come from two places: tasks that went
-/// past their deadline still open, and tasks that were finished late.
 enum TaskOutcome {
     case onTime
     case missed
-    /// Still open, with time left on the clock. Not a training row yet.
     case undecided
 
     static func of(_ task: TodoItem, asOf now: Date = .now, calendar: Calendar = .current) -> TaskOutcome {
@@ -103,7 +96,7 @@ struct TrainingItem {
         case .missed: isCompleted = false
         case .undecided: return nil
         }
-        features = TaskFeatures(task: task, calendar: calendar)
+        features = TaskFeatures(task: task, today: now, calendar: calendar)
     }
 
     /// The labeled dataset harvested from the user's real tasks, oldest first so
